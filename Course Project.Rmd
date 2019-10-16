@@ -1,0 +1,124 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Tianxiao Shi"
+date: "10/16/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+This project is from the Coursera course Practical Machine Learning. 
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The data consists of a Training data and a Test data (to be used to validate the selected model).
+
+The goal of the project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set. You may use any of the other variables to predict with.
+
+Note: The dataset used in this project is a courtesy of “Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers’ Data Classification of Body Postures and Movements”
+
+## Load library and Data
+
+```{r}
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+training<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), header=T)
+testing<- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), header=T)
+dim(training)
+dim(testing)
+str(training)
+```
+## Clean and PreProcess data
+Next, we remove columns with NA values or blank values. and also the first seven columns give information about the people who did the test, and also timestamps. We will remove them as well.
+
+```{r}
+indColToRemove <- which(colSums(is.na(training) |training=="")>0.9*dim(training)[1]) 
+training_clean <- training[,-indColToRemove]
+training_clean <- training_clean[,-c(1:7)]
+dim(training_clean)
+
+indColToRemove <- which(colSums(is.na(testing) |testing=="")>0.9*dim(testing)[1]) 
+testing_clean <- testing[,-indColToRemove]
+testing_clean <- testing_clean[,-c(1:7)]
+dim(testing_clean)
+```
+
+## Create partition for the train and test set within the training data
+
+```{r}
+set.seed(12345)
+inTrain1 <- createDataPartition(training_clean$classe, p=0.75, list=FALSE)
+Train1 <- training_clean[inTrain1,]
+Test1 <- training_clean[-inTrain1,]
+dim(Train1)
+
+```
+
+## Predict with Trees Model, with cross validation of 5 folds.
+```{r}
+trControl <- trainControl(method="cv", number=5)
+model_tree <- train(classe~., data=Train1, method="rpart", trControl=trControl)
+
+```
+## Look at the final model
+
+```{r}
+model_tree$finalModel
+
+```
+
+## Plot tree
+
+```{r}
+fancyRpartPlot(model_tree$finalModel)
+
+```
+
+## Predict on test set, print confusion matrix
+
+```{r}
+trainpred <- predict(model_tree,newdata=Test1)
+
+confusion_matrix <- confusionMatrix(Test1$classe,trainpred)
+
+confusion_matrix$table
+
+confusion_matrix$overall[1]
+```
+
+We can see the accuracy is very low at 48.8%.
+
+## Predict with Random Forests
+
+```{r}
+model_rf <- train(classe~., data=Train1, method="rf", trControl=trControl, verbose=FALSE)
+print(model_rf)
+plot(model_rf,main="Accuracy of Random forest model by number of predictors")
+trainpred <- predict(model_rf,newdata=Test1)
+
+confusion_matrix_rf <- confusionMatrix(Test1$classe,trainpred)
+
+confusion_matrix_rf$table
+
+confusion_matrix_rf$overall[1]
+
+names(model_rf$finalModel)
+
+plot(model_rf$finalModel,main="Model error of Random forest model by number of trees")
+```
+
+## Conclusion
+We can see the accuracy by using Random Forests model is very high at 99.5%.
+
+So it is obvious that the random forest model is the best one. I will use it to predict the values of classe for the test data set.
+
+```{r}
+FinalTestPred <- predict(model_rf,newdata=testing_clean)
+FinalTestPred
+
+```
